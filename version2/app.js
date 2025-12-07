@@ -7,7 +7,14 @@ const crypto = require('crypto');
 // ----------------------------------
 
 
-function gcd(a, b) {
+function gcd(a, b){
+    if (a === 0n){
+        return b;
+    }
+    return gcd(b % a, a)
+}
+
+function fff(a, b) {
     while (b !== 0n) {
         let t = b;
         b = a % b;
@@ -67,7 +74,7 @@ function power(base, expo, m) {
 // ----------------------------------
 
 const min_bits = 6
-const max_bits = 512
+const max_bits = 256
 const pairs_with_bits = 24
 var index = 0
 
@@ -118,6 +125,49 @@ const RSA = {
     encrypt: (m, e, n) => power(m, e, n), // Kryptering af M med Public Key
     decrypt: (c, d, n) => power(c, d, n) // Dekryptering af C med Private Key
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // ----------------------------------
 // 3. Brute force funktionalitet gennem faktorisering af n, for at finde p.
@@ -303,13 +353,15 @@ function main() {
     console.log("\nPART 3: Brute force by factorisation Benchmark \n");
 
     index = -1
-    for (let i = 0; i < 40 * pairs_with_bits; i++){
+    for (let i = 0; i < 30 * pairs_with_bits; i++){
         runFactorBenchmark(RSA.generateKeys().n)
     }
     const end2 = process.hrtime.bigint()
     time = ((Number(end2 - start) / 1e9) - time).toFixed(4)
 
     console.log("Finished Brute Force Benchmark in " + time + "s")
+
+    return; //In place to stop file saving while testing
     console.log("\n END: Saving data to CSV files \n");
 
     const file_index = 0
