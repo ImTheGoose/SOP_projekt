@@ -1,33 +1,20 @@
 const process = require('process')
+const fs = require('node:fs');
+const crypto = require('crypto');
 
 // ----------------------------------
-// 1. Kildekoden for RSA algoritmen.
+// 1. Generelle funktioner til anvendelse af RSA algoritmen.
 // ----------------------------------
 
-// Greatest common divisor using Euklidian Algorithm, whilst also finding x and y using the Extended Euklidian Algorithm
-function gcdExtended(a, b){
-     
-    // Base Case
-    if (a == 0n)
-    {
-        x = 0n;
-        y = 1n;
-        return b;
+
+function gcd(a, b) {
+    while (b !== 0n) {
+        let t = b;
+        b = a % b;
+        a = t;
     }
-     
-    // To store results of recursive call    
-    let gcd = gcdExtended(b % a, a);
-    let x1 = x;
-    let y1 = y;
-
-    // Update x and y using results of recursive
-    // call
-    x = y1 - (b / a) * x1;
-    y = x1;
- 
-    return gcd;
+    return a;
 }
-
 
 // Credit: https://github.com/AlienWashim/RSA-Encryption-Decryption-Algorithm/blob/main/java.js
 function extendedEuclidean(a, b){
@@ -75,25 +62,21 @@ function power(base, expo, m) {
 }
 
 
+// ----------------------------------
+// 2. Udførsel af RSA algortimen.
+// ----------------------------------
 
+const min_bits = 6
+const max_bits = 512
+const pairs_with_bits = 24
+var index = 0
 
-// ==========================================
-// 2. RSA IMPLEMENTATION
-// ==========================================
-let index = 0
-
-const prime_pairs = [
-    [31731677n, 12113251n],
-    [158888063n, 752705693n],
-    [7438438729n, 6895530373n],
-    [10947530563n, 89726011433n],
-    [314052540757n, 752964439301n]
+var prime_pairs = [
 ]
 
 const RSA = {
     generateKeys: () => {
-        // Fixed small primes for demonstration
-        var primes = RSA.get_prime_set()
+        let primes = RSA.get_prime_pair()
         const p = primes[0];
         const q = primes[1];
         const n = p * q;
@@ -101,8 +84,7 @@ const RSA = {
 
         let e = 2n;
         while (e < phi) {
-            const [gcd, _, __] = extendedEuclidean(e, phi)
-            if (gcd === 1n) break;
+            if (gcd(e, phi) === 1n) break;
             e++;
         }
 
@@ -110,93 +92,187 @@ const RSA = {
         return { e, d, n };
     },
 
-    get_prime_set(){
+    recalculate_prime_pairs(){ // Udregner primtal indenfor max og minimum, ved brug af NodeJS crypto bibliotek
+        prime_pairs = []
+
+        for (let i = min_bits; i < max_bits; i++){
+            for (let p = 0; p < pairs_with_bits; p++){
+                let pair = []
+                const bits = i
+                pair.push(crypto.generatePrimeSync(bits, {"bigint": true}))
+                pair.push(crypto.generatePrimeSync(bits, {"bigint": true}))
+                prime_pairs.push(pair)
+            }
+
+        }
+    },
+
+    get_prime_pair(){ // Giver det næste primtal i rækken fra prime_pairs
         index++
         if (index >= prime_pairs.length){
-            index = 0
+            return prime_pairs[prime_pairs.length]
         }
         return prime_pairs[index]
     },
 
-    encrypt: (m, e, n) => power(m, e, n),
-    decrypt: (c, d, n) => power(c, d, n)
+    encrypt: (m, e, n) => power(m, e, n), // Kryptering af M med Public Key
+    decrypt: (c, d, n) => power(c, d, n) // Dekryptering af C med Private Key
 };
 
-// ==========================================
-// 3. POLLARD'S RHO (FACTORIZATION)
-// ==========================================
+// ----------------------------------
+// 3. Brute force funktionalitet gennem faktorisering af n, for at finde p.
+// ----------------------------------
 
-function pollardsRho(N) {
-    if (N % 2n === 0n) return 2n;
 
-    let x = 2n, y = 2n, d = 1n;
-    const c = 1n;
+// Javascript implementering af Pollards Rho algoritmen, basseret på python kode fra: https://www.numberanalytics.com/blog/pollards-rho-algorithm-guide
+function pollardsRho(n, c = 1n) {
+    if (n % 2n === 0n){
+        return 2n;
+    };
 
-    while (d === 1n) {
-        // Tortoise (x) moves 1 step, Hare (y) moves 2 steps
-        x = (x * x + c) % N;
-        y = (y * y + c) % N;
-        y = (y * y + c) % N;
+    let x = 2n;
+    let y = 2n;
+    let p = 1n; 
+    
+    while (p === 1n) {
 
-        // Check for common factor
-        const diff = (x > y) ? (x - y) : (y - x);
-        const [gcd, _, __] = extendedEuclidean(diff, N)
-        d = gcd;
+        x = ((x * x) % n + c + n) % n;
+        y = ((y * y) % n + c + n) % n;
+        y = ((y * y) % n + c + n) % n;
 
-        if (d === N) return null; // Failure (cycle detected)
-    }
-    return d;
+        if (x > y){
+            p = gcd(x - y, n);
+        }else{
+            p = gcd(y - x, n);
+        }
+
+        if (p === n) return pollardsRho(n, BigInt(Math.floor(Math.random() * 10))); // In case of failed, retries with a random seed.
+    };
+    return p;
 }
 
-// ==========================================
-// 4. BENCHMARKING ENGINE (Node.js)
-// ==========================================
+function runFactorBenchmark(n, iterations = 2){ // Anvender pollards rho algoritme til at faktorisere n.
+    const bitCount = n.toString(2).split('').filter(bit => bit === '1').length;
+    let totalNanoSeconds = 0n;
+    var p = 0;
 
-function runBenchmark(label, N, iterations = 20) {
-    let totalNs = 0n;
-    let successCount = 0;
+    for (let i = 0; i < iterations; i++){ // Gentages for at finde en gennemsnitshastighed for faktorisering, som kan forbedre kvaliteten af data.
+        const start = process.hrtime.bigint()
+        const result = pollardsRho(n)
+        const end = process.hrtime.bigint()
 
-    // Warm-up run (optimizes JIT compiler)
-    pollardsRho(N); 
+        totalNanoSeconds += (end - start);
 
-    var p = 0
-
-    for (let i = 0; i < iterations; i++) {
-        const start = process.hrtime.bigint();
-        const result = pollardsRho(N);
-        const end = process.hrtime.bigint();
-
-        if (result && result !== N) {
-            totalNs += (end - start);
+        if (result && result !== n){
             p = result
-            successCount++;
+            csv_data.brute_force.push({BitCount: bitCount, Time: (end - start)})
         }
     }
 
-    if (successCount === 0) return { label, time: "Failed" };
+    if (!p || p === n){
+        return { time: "Failed" };
+    }
 
-    var q = N / p
+    const q = n / p
 
-    // Convert nanoseconds to milliseconds (float)
-    const avgNs = Number(totalNs) / successCount;
-    console.log("Finished benchmark of key with size: " + label + " with total time of " + totalNs + " (ms)")
+    const averageNanoSeconds = Number(totalNanoSeconds) / iterations
+    csv_data.brute_force_average.push({BitCount: bitCount, Time: averageNanoSeconds})
+
+
     return {
-        "Key Size": label,
-        "Modulus (N)": N.toString().slice(0, 10) + "...", // Truncate for display
-        "Digits": N.toString().length,
-        "Time (ms)": (avgNs / 1e6).toFixed(4),
-        "P" : p,
-        "q" : q
+        N: n, // n.toString().slice(0, 10) + "...", // Truncate for display
+        BitCount: bitCount,
+        AverageTime: (averageNanoSeconds / 1e6).toFixed(4),
+        P : Number(p),
+        Q : Number(q)
     };
 }
+
+function runEncryptionBenchmark( iterations = 5){
+    const { e, d, n } = RSA.generateKeys()
+    const plaintextBigInt = 123n
+    const ModBitCount = n.toString(2).split('').filter(bit => bit === '1').length;
+    var totalEncryptionTime = 0n;
+    var totalDecryptionTime = 0n;
+    var encryptedValue = 0n
+
+    for (let i = 0; i < iterations; i++){
+        const start1 = process.hrtime.bigint()
+        encryptedValue = RSA.encrypt(plaintextBigInt, e, n)
+        const end1 = process.hrtime.bigint()
+
+
+
+        const start2 = process.hrtime.bigint()
+        const decryptedValue = RSA.decrypt(encryptedValue, d, n)
+        const end2 = process.hrtime.bigint()
+        totalEncryptionTime += end1 - start1
+        totalDecryptionTime += end2 - start2
+
+
+    }
+
+    const averageEncryptionTime = Number(totalEncryptionTime) / iterations
+    const averageDecryptionTime = Number(totalDecryptionTime) / iterations
+
+    csv_data.encryption.push({
+        Time: averageEncryptionTime,
+        ModBitCount: ModBitCount,
+        PlaintextBitCount: plaintextBigInt.toString(2).split('').filter(bit => bit === '1').length,
+        Eksponent: e,
+    })
+
+    csv_data.decryption.push({
+        Time: averageDecryptionTime,
+        ModBitCount : ModBitCount,
+        CipherBitCount : encryptedValue.toString(2).split('').filter(bit => bit === '1').length,
+    })
+
+
+    return {
+        N : n,
+        NBitCount : ModBitCount,
+        AvgEncTime : averageEncryptionTime,
+        AvgDecTime : averageDecryptionTime
+    }
+
+
+}
+
+const csvmaker = function (data) {
+    let csvRows = [];
+
+    const headers = Object.keys(data[0]);
+
+    csvRows.push(headers.join(','));
+
+    for (let i = 0; i < data.length; i++){
+        const values = Object.values(data[i]).join(',');
+        csvRows.push(values);
+    }
+
+    return csvRows.join('\n');
+}
+
 
 
 // ==========================================
 // 5. MAIN EXECUTION
 // ==========================================
 
+var csv_data = {
+    encryption : [],
+    decryption : [],
+    brute_force : [],
+    brute_force_average : []
+}
+
 function main() {
-    console.log("\n🔹 PART 1: RSA Encryption/Decryption Proof\n");
+    console.log("\nINITIAL: Generating prime values \n");
+    RSA.recalculate_prime_pairs()
+    console.log("Successfully generated desired primes")
+
+    console.log("\nPART 1: RSA Encryption/Decryption Proof \n");
     
     const { e, d, n } = RSA.generateKeys();
     const message = 123n;
@@ -210,35 +286,48 @@ function main() {
     console.log(`Original:  ${message}`);
     console.log(`Encrypted: ${encrypted}`);
     console.log(`Decrypted: ${decrypted}`);
-    console.log(decrypted === message ? "✅ SUCCESS" : "❌ FAILED");
+    console.log(decrypted === message ? "DECRYPTION SUCCESS" : "DECRYPTION FAILED");
 
-    console.log("\n" + "=".repeat(50));
-    console.log("\n🔹 PART 2: Factorization Complexity Benchmark");
-    console.log("   Measuring time to break keys of increasing size...\n");
+    const start = process.hrtime.bigint()
+    console.log("\nPART 2: RSA Encryption and Decryption Benchmark \n");
+    index = -1
+    const amount = prime_pairs.length
 
-    // Test Cases: N = p * q
-    const testVectors = [
-        { bits: "8-digit", N: n },
-        
-        // --- NEW, LARGER TEST CASES ---
-        // 85-bit: Approx. 26 decimal digits
-        { bits: "9-digit", N: RSA.generateKeys().n }, 
-        
-        // 90-bit: Approx. 28 decimal digits
-        { bits: "10-digit", N: RSA.generateKeys().n }, 
-        
-        // 95-bit: Approx. 29 decimal digits
-        { bits: "11-digit", N: RSA.generateKeys().n }, 
-        
-        // 100-bit: Approx. 31 decimal digits. This is the largest, demanding run.
-        { bits: "12-digit", N: RSA.generateKeys().n }
-    ];
-    index = 9999
-    const results = testVectors.map(v => runBenchmark(v.bits, v.N));
-    
-    // Display results in a clean table
-    console.table(results);
+    for (let i = 0; i < amount; i++){
+        runEncryptionBenchmark()
+    }
+    const end1 = process.hrtime.bigint()
+    var time = (Number(end1 - start) / 1e9).toFixed(4)
+    console.log("Finished encryption and decryption Benchmark in " + time + "s")
+
+    console.log("\nPART 3: Brute force by factorisation Benchmark \n");
+
+    index = -1
+    for (let i = 0; i < 40 * pairs_with_bits; i++){
+        runFactorBenchmark(RSA.generateKeys().n)
+    }
+    const end2 = process.hrtime.bigint()
+    time = ((Number(end2 - start) / 1e9) - time).toFixed(4)
+
+    console.log("Finished Brute Force Benchmark in " + time + "s")
+    console.log("\n END: Saving data to CSV files \n");
+
+    const file_index = 0
+
+    for (let i = 0; i < Object.keys(csv_data).length; i++){
+        const PATH = `/Users/david/desktop/sop_projekt/test_results/`
+        const key = Object.keys(csv_data)[i]
+        fs.writeFile(`${PATH}${key}${file_index}.csv`, csvmaker(csv_data[key]), err => {
+            if (err) {
+                console.error(err)
+            }else{
+                console.log(`* Successfully written ${key} data to csv`)
+            }
+        })
+    }
+    //console.table(results)
 
 };
 
 main()
+
