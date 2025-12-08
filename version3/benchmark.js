@@ -1,106 +1,12 @@
-const process = require('process')
+const process = require('process');
 const fs = require('node:fs');
 const crypto = require('crypto');
 
-// ----------------------------------
-// 1. Generelle funktioner til anvendelse af RSA algoritmen.
-// ----------------------------------
+const RSA = require('./rsa.js'); // RSA object with reference methods.
 
-function gcd(a, b){
-    if (a === 0n){
-        return b;
-    }
-    return gcd(b % a, a)
-}
-
-// Credit: https://github.com/AlienWashim/RSA-Encryption-Decryption-Algorithm/blob/main/java.js
-function extendedEuclidean(a, b){
-
-    // Base case where the divison results in a modulus of 0
-    if (a === 0n) 
-    {
-        return [b, 0n, 1n];
-    }
-
-    // Recurssive call for finding createst common divisor
-    const [gcd, x1, y1] = extendedEuclidean(b % a, a);
-
-    // Recurssive substitution for extended euclidian methoer.
-    const x = y1 - ((b / a) | 0n) * x1;
-    const y = x1;
-
-    return [gcd, x, y];
-};
-
-// Credit: https://github.com/AlienWashim/RSA-Encryption-Decryption-Algorithm/blob/main/java.js
-function modInverse(a, m) {  
-    // Executes extended euclidian method, to find value of X.
-    const [gcd, x, _] = extendedEuclidean(a, m);
-
-    if (gcd !== 1n) {
-        throw new Error("The modular inverse does not exist.");
-    }
-    
-    return (x % m + m) % m;
-}
-
-// Credit: https://www.geeksforgeeks.org/computer-networks/rsa-algorithm-cryptography/
-function power(base, expo, m) {
-    let res = 1n; 
-    base = base % m; 
-    while (expo > 0) {
-        if (expo & 1n) {
-            res = (res * base) % m;
-        }
-        base = (base * base) % m; 
-        expo >>= 1n; //Division by 2, by bitwise shift. 
-    }
-    return res;
-}
-
-
-// ----------------------------------
-// 2. Udførsel af RSA algortimen.
-// ----------------------------------
-
-
-
-/*
-funktion opretNøgler():
-    p := primtal
-    q := primtal2
-    n := p*q
-    phi := (p - 1) * (q - 1)
-
-    e = 2
-    så længe (e < phi):
-        divisor := gcd(e, phi)
-        hvis (divisor er 1):
-            bryd løkke
-        ellers:
-            e++
-    
-    d := inversModulus(e, phi)
-    retuner [e, d, n]
-
-    */
-
-    
-function generateKeys(){
-    let primes = get_next_prime_pair()
-    const p = primes[0];
-    const q = primes[1];
-    const n = p * q;
-    const phi = (p - 1n) * (q - 1n);
-
-    let e = 2n;
-    while (e < phi) {
-        if (gcd(e, phi) === 1n) break;
-        e++;
-    }
-
-    const d = modInverse(e, phi);
-    return { e, d, n };
+function generateNextKeys(){
+    const [p, q] = get_next_prime_pair()
+    return RSA.generateKeys(p, q)
 }
 
 var prime_pairs = []
@@ -114,18 +20,9 @@ function get_next_prime_pair(){ // Giver det næste primtal i rækken fra prime_
     return prime_pairs[index]
 }
 
-function encrypt(M, e, n){
-    return power(M, e, n); // Kryptering af M med Public Key
-};
-
-function decrypt(C, d, n){
-    return power(C, d, n); // Dekryptering af C med Private Key
-};
-
-
 var min_bits = 6 // Mindste størrelse i bits for primtallende
 var max_bits = 512 // Største størrelse i bits for primtallende
-var pairs_with_bits = 24 // Hvor mange primtals par skal udregnes per inkrement mellem minimum og maksimum
+var pairs_with_bits = 2 // Hvor mange primtals par skal udregnes per inkrement mellem minimum og maksimum
 
 function recalculate_prime_pairs(){ // Udregner primtal indenfor max og minimum, ved brug af NodeJS crypto bibliotek
     prime_pairs = []
@@ -141,55 +38,6 @@ function recalculate_prime_pairs(){ // Udregner primtal indenfor max og minimum,
 
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// ----------------------------------
-// 3. Brute force funktionalitet gennem faktorisering af n, for at finde p.
-// ----------------------------------
-
 
 // Javascript implementering af Pollards Rho algoritmen, basseret på python kode fra: https://www.numberanalytics.com/blog/pollards-rho-algorithm-guide
 function pollardsRho(n, c = 1n) {
@@ -208,9 +56,9 @@ function pollardsRho(n, c = 1n) {
         y = ((y * y) % n + c + n) % n;
 
         if (x > y){
-            p = gcd(x - y, n);
+            p = RSA.gcd(x - y, n);
         }else{
-            p = gcd(y - x, n);
+            p = RSA.gcd(y - x, n);
         }
 
         if (p === n) return pollardsRho(n, BigInt(Math.floor(Math.random() * 10))); // In case of failed, retries with a random seed.
@@ -255,8 +103,9 @@ function runFactorBenchmark(n, iterations = 5){ // Anvender pollards rho algorit
     };
 }
 
-function runEncryptionBenchmark( iterations = 5){
-    const { e, d, n } = generateKeys()
+
+function runEncryptionBenchmark(iterations = 5){
+    const { e, d, n } = generateNextKeys()
     const plaintextBigInt = 123n
     const ModBitCount = n.toString(2).split('').filter(bit => bit === '1').length;
     var totalEncryptionTime = 0n;
@@ -265,13 +114,13 @@ function runEncryptionBenchmark( iterations = 5){
 
     for (let i = 0; i < iterations; i++){
         const start1 = process.hrtime.bigint()
-        encryptedValue = encrypt(plaintextBigInt, e, n)
+        encryptedValue = RSA.encrypt(plaintextBigInt, e, n)
         const end1 = process.hrtime.bigint()
 
 
 
         const start2 = process.hrtime.bigint()
-        const decryptedValue = decrypt(encryptedValue, d, n)
+        const decryptedValue = RSA.decrypt(encryptedValue, d, n)
         const end2 = process.hrtime.bigint()
         totalEncryptionTime += end1 - start1
         totalDecryptionTime += end2 - start2
@@ -295,7 +144,6 @@ function runEncryptionBenchmark( iterations = 5){
         CipherBitCount : encryptedValue.toString(2).split('').filter(bit => bit === '1').length,
     })
 
-
     return {
         N : n,
         NBitCount : ModBitCount,
@@ -305,9 +153,9 @@ function runEncryptionBenchmark( iterations = 5){
 }
 
 function runEncDecTest(M = 0n, printToConsole = false){
-    const { e, d, n } = generateKeys()
-    const C = encrypt(M, e, n)
-    const decryptedM = decrypt(C, d, n)
+    const { e, d, n } = generateNextKeys()
+    const C = RSA.encrypt(M, e, n)
+    const decryptedM = RSA.decrypt(C, d, n)
 
     if(printToConsole){
         console.log("Public_key (" + n + ", " + e + ")")
@@ -324,10 +172,6 @@ function runEncDecTest(M = 0n, printToConsole = false){
     }
 
 }
-
-// ==========================================
-// 5. MAIN EXECUTION
-// ==========================================
 
 var csv_data = { // Objekt der indeholder arrays, som bliver gemt i seperate .csv filer
     encryption : [],
@@ -350,8 +194,6 @@ const csvmaker = function (data) { // Omdanner et javascript array med js objekt
 
     return csvRows.join('\n');
 }
-
-
 
 function main() {
     console.log("\nINITIAL: Generating prime values \n");
@@ -382,14 +224,14 @@ function main() {
 
     index = -1
     for (let i = 0; i < prime_pairs.length; i++){
-        runFactorBenchmark(generateKeys().n)
+        runFactorBenchmark(generateNextKeys().n)
     }
     const end2 = process.hrtime.bigint()
     time = ((Number(end2 - start) / 1e9) - time).toFixed(4)
 
     console.log("Finished Brute Force Benchmark in " + time + "s")
 
-    //return; //In place to stop file saving while testing
+    return; //In place to stop file saving while testing
     console.log("\n END: Saving data to CSV files \n");
 
     const file_index = 2
