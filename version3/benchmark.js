@@ -22,7 +22,7 @@ function get_next_prime_pair(){ // Giver det næste primtal i rækken fra prime_
 
 var min_bits = 6 // Mindste størrelse i bits for primtallende
 var max_bits = 512 // Største størrelse i bits for primtallende
-var pairs_with_bits = 2 // Hvor mange primtals par skal udregnes per inkrement mellem minimum og maksimum
+var pairs_with_bits = 24 // Hvor mange primtals par skal udregnes per inkrement mellem minimum og maksimum
 
 function recalculate_prime_pairs(){ // Udregner primtal indenfor max og minimum, ved brug af NodeJS crypto bibliotek
     prime_pairs = []
@@ -66,7 +66,7 @@ function pollardsRho(n, c = 1n) {
     return p;
 }
 
-function runFactorBenchmark(n, iterations = 5){ // Anvender pollards rho algoritme til at faktorisere n.
+function runFactorBenchmark(n, iterations = 2){ // Anvender pollards rho algoritme til at faktorisere n.
     const bitCount = n.toString(2).split('').filter(bit => bit === '1').length;
     let totalNanoSeconds = 0n;
     var p = 0;
@@ -80,7 +80,7 @@ function runFactorBenchmark(n, iterations = 5){ // Anvender pollards rho algorit
 
         if (result && result !== n){
             p = result
-            csv_data.brute_force.push({BitCount: bitCount, Time: (end - start)})
+            csv_data.brute_force.push({BitCount: bitCount, Time: Math.round(Number(end - start))})
         }
     }
 
@@ -90,7 +90,7 @@ function runFactorBenchmark(n, iterations = 5){ // Anvender pollards rho algorit
 
     const q = n / p
 
-    const averageNanoSeconds = Number(totalNanoSeconds) / iterations
+    const averageNanoSeconds = Math.round(Number(totalNanoSeconds) / iterations)
     csv_data.brute_force_average.push({BitCount: bitCount, Time: averageNanoSeconds})
 
 
@@ -142,6 +142,7 @@ function runEncryptionBenchmark(iterations = 5){
         Time: averageDecryptionTime,
         ModBitCount : ModBitCount,
         CipherBitCount : encryptedValue.toString(2).split('').filter(bit => bit === '1').length,
+        EkpsonentBitSize : d.toString(2).split('').filter(bit => bit === '1').length,
     })
 
     return {
@@ -216,40 +217,58 @@ function main() {
     console.log("Finished encryption and decryption Benchmark in " + time + "s")
 
     console.log("\PPREWORK: Regenerating prime values for part 3\n");
-    pairs_with_bits *= 12
-    max_bits = 33
+    pairs_with_bits *= 8
     recalculate_prime_pairs()
 
     console.log("\nPART 3: Brute force by factorisation Benchmark \n");
 
     index = -1
+    const full_run_time = process.hrtime.bigint()
+    var run_time = process.hrtime.bigint()
     for (let i = 0; i < prime_pairs.length; i++){
         runFactorBenchmark(generateNextKeys().n)
+
+        const current_time = process.hrtime.bigint()
+        const diff = current_time - run_time
+        if (Number(diff) / 1e9 >= auto_save_interval){
+            run_time = current_time
+            save_data_to_csv(auto_save_index)
+            console.log(`STATUS: Automatically saved after running for ${Math.round(Number(current_time - full_run_time) / 1e9)} seconds. Current file index is ${auto_save_index}, and current prime increment is ${6 + i / pairs_with_bits}`)
+        }
     }
     const end2 = process.hrtime.bigint()
     time = ((Number(end2 - start) / 1e9) - time).toFixed(4)
 
     console.log("Finished Brute Force Benchmark in " + time + "s")
 
-    return; //In place to stop file saving while testing
+    //return; //In place to stop file saving while testing
     console.log("\n END: Saving data to CSV files \n");
 
-    const file_index = 2
+    save_data_to_csv()
+    //console.table(results)
+};
 
+
+var auto_save_index = -2
+const auto_save_interval = 300 // In seconds
+const file_index = 4
+function save_data_to_csv(index = file_index){
     for (let i = 0; i < Object.keys(csv_data).length; i++){
         const PATH = `/Users/david/desktop/sop_projekt/test_results/`
         const key = Object.keys(csv_data)[i]
-        fs.writeFile(`${PATH}${key}${file_index}.csv`, csvmaker(csv_data[key]), err => {
+        fs.writeFileSync(`${PATH}${key}${index}.csv`, csvmaker(csv_data[key]), err => {
             if (err) {
                 console.error(err)
+                if (index !== file_index){
+                    auto_save_index--
+                    save_data_to_csv(auto_save_index)
+                }
             }else{
                 console.log(`* Successfully written ${key} data to csv`)
             }
         })
     }
-    //console.table(results)
-
-};
+}
 
 
 

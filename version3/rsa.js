@@ -8,16 +8,16 @@ function gcd(a, b){
     return gcd(b % a, a)
 }
 
-// Credit: https://github.com/AlienWashim/RSA-Encryption-Decryption-Algorithm/blob/main/java.js
+// Modifiseret udgave af kodestykket fra: https://www.geeksforgeeks.org/dsa/multiplicative-inverse-under-modulo-m/ 
 function extendedEuclidean(a, b){
 
-    // Base case where the divison results in a modulus of 0
+    // Base case
     if (a === 0n) 
     {
         return [b, 0n, 1n];
     }
 
-    // Recurssive call for finding createst common divisor
+    // Rekursivt kald til at finde største fælles divisor, og fremskaffe værdierne for tidligere x og y.
     const [gcd, x1, y1] = extendedEuclidean(b % a, a);
 
     // Recurssive substitution for extended euclidian methoer.
@@ -27,7 +27,7 @@ function extendedEuclidean(a, b){
     return [gcd, x, y];
 };
 
-// Credit: https://github.com/AlienWashim/RSA-Encryption-Decryption-Algorithm/blob/main/java.js
+// Modifiseret udgave af kodestykket fra: https://www.geeksforgeeks.org/dsa/multiplicative-inverse-under-modulo-m/ 
 function modInverse(a, m) {  
     // Executes extended euclidian method, to find value of X.
     const [gcd, x, _] = extendedEuclidean(a, m);
@@ -76,11 +76,6 @@ function decrypt(C, d, n){ // Dekryptering af C med Private Key
     return power(C, d, n); 
 };
 
-const rl = readline.createInterface({ // Konsol input håndtering. Credit: https://nodejs.org/en/learn/command-line/accept-input-from-the-command-line-in-nodejs
-    input : process.stdin,
-    output : process.stdout
-})
-
 var current_info = {
     p: 99563n,
     q: 15647n,
@@ -88,12 +83,12 @@ var current_info = {
 }
 
 function executeRSA(){
-    const { e, d, n } = generateKeys(current_info.p, current_info.q)
+    const { e, d, n } = generateKeys(current_info.p, current_info.q) // Fremskaffer krypteringsnøgler
     console.log(`Public Key = (${n}, ${e})`)
     console.log(`Private Key = (${n}, ${d})`)
 
     console.log(`Plaintext = ${current_info.M}`)
-    const C = encrypt(current_info.M, e, n)
+    const C = encrypt(current_info.M, e, n) // Udregner cipherteksten for M
     console.log(`Chipertext = ${C}`)
     const M2 = decrypt(C, d, n)
     console.log(`Decrypted plaintext = ${M2}`)
@@ -104,7 +99,7 @@ function executeRSA(){
         console.log(`FAIL: Decrypted text does not match plaintext`)
     }
 
-    rl.close()
+    rl.close() // Lukker readline interface fra NodeJS, så programmet kan stoppe.
 }
 
 function requestEncryptionValue(){
@@ -181,8 +176,13 @@ function requestQValue(){
         executeRSA()
     })
 }
-
-requestEncryptionValue()
+/*
+const rl = readline.createInterface({ // Konsol input håndtering. Credit: https://nodejs.org/en/learn/command-line/accept-input-from-the-command-line-in-nodejs
+    input : process.stdin,
+    output : process.stdout
+})
+    */
+//requestEncryptionValue()
 
 module.exports = { encrypt, decrypt, generateKeys, power, gcd, modInverse, extendedEuclidean } // Exportering til anvendelse i benchmark.js
 
