@@ -1,6 +1,6 @@
-const process = require('process');
-const fs = require('node:fs');
-const crypto = require('crypto');
+const process = require('process'); // https://nodejs.org/api/process.html
+const fs = require('node:fs'); // https://nodejs.org/api/fs.html
+const crypto = require('crypto'); // https://nodejs.org/api/crypto.html
 
 const RSA = require('./rsa.js'); // RSA object with reference methods.
 
@@ -181,8 +181,10 @@ var csv_data = { // Objekt der indeholder arrays, som bliver gemt i seperate .cs
     brute_force_average : []
 }
 
-const csvmaker = function (data) { // Omdanner et javascript array med js objekter, til et array der passer .csv formattet.
-    let csvRows = [];
+// Omdanner et javascript array med js objekter, til et array der passer .csv formattet. 
+// Modificeret kode fra: https://www.geeksforgeeks.org/javascript/how-to-create-and-download-csv-file-in-javascript/
+const csvmaker = function (data) { 
+        let csvRows = [];
 
     const headers = Object.keys(data[0]);
 
@@ -233,7 +235,8 @@ function main() {
         if (Number(diff) / 1e9 >= auto_save_interval){
             run_time = current_time
             save_data_to_csv(auto_save_index)
-            console.log(`STATUS: Automatically saved after running for ${Math.round(Number(current_time - full_run_time) / 1e9)} seconds. Current file index is ${auto_save_index}, and current prime increment is ${6 + i / pairs_with_bits}`)
+            console.log(`STATUS: Automatically saved after running for ${Math.round(Number(current_time - full_run_time) / 1e9)} 
+                seconds. Current file index is ${auto_save_index}, and current prime increment is ${6 + i / pairs_with_bits}`)
         }
     }
     const end2 = process.hrtime.bigint()
@@ -269,9 +272,6 @@ function save_data_to_csv(index = file_index){
         })
     }
 }
-
-
-
 
 main()
 

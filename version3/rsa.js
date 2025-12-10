@@ -1,6 +1,6 @@
-const readline = require('node:readline');
+const readline = require('node:readline'); // https://nodejs.org/api/readline.html
 
-// Største fælles divisor med euklids algoritme.
+// Euklids algoritme fra: https://www.geeksforgeeks.org/dsa/eulers-totient-function/
 function gcd(a, b){
     if (a === 0n){
         return b;
@@ -176,30 +176,12 @@ function requestQValue(){
         executeRSA()
     })
 }
-/*
-const rl = readline.createInterface({ // Konsol input håndtering. Credit: https://nodejs.org/en/learn/command-line/accept-input-from-the-command-line-in-nodejs
+
+const rl = readline.createInterface({ // Konsol input håndtering. Credit: https://nodejs.org/api/readline.html
     input : process.stdin,
     output : process.stdout
 })
-    */
-//requestEncryptionValue()
+
+requestEncryptionValue()
 
 module.exports = { encrypt, decrypt, generateKeys, power, gcd, modInverse, extendedEuclidean } // Exportering til anvendelse i benchmark.js
-
-/* Psuedokode for oprettelse af nøgler
-funktion opretNøgler(p: vilkårligt_primtal, q: vilkårligt_primtal):
-    n := p*q
-    phi := (p - 1) * (q - 1)
-
-    e = 2
-    så længe (e < phi):
-        divisor := gcd(e, phi)
-        hvis (divisor er 1):
-            bryd løkke
-        ellers:
-            e++
-    
-    d := inversModulus(e, phi)
-    retuner [e, d, n]
-
-    */
